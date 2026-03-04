@@ -2,7 +2,7 @@
 
 #include "engine.h"
 
-Shader *particleshader = NULL, *particlenotextureshader = NULL, *particlesoftshader = NULL, *particletextshader = NULL;
+Shader *particleshader = NULL, *particlenotextureshader = NULL, *particlesoftshader = NULL, *particletextshader = NULL, *particleHazeShader = NULL;
 
 VARP(particlelayers, 0, 1, 1);
 FVARP(particlebright, 0, 2, 100);
@@ -119,6 +119,9 @@ enum
     PT_SHADER    = 1<<21,
     PT_NOLAYER   = 1<<22,
     PT_COLLIDE   = 1<<23,
+    PT_HAZE      = 1<<24,
+    PT_SCROLL    = 1<<25,
+    PT_FADE      = 1<<26,
     PT_FLIP      = PT_HFLIP | PT_VFLIP | PT_ROT
 };
 
@@ -679,10 +682,10 @@ struct varenderer : partrenderer
         p->gravity = gravity;
         p->fade = fade;
         p->millis = lastmillis + emitoffset;
-        p->color = bvec::hexcolor(color);
         p->size = size;
         p->owner = NULL;
         p->flags = 0x80 | (rndmask ? rnd(0x80) & rndmask : 0);
+        p->color = (p->flags & PT_HAZE) ? bvec::hexcolor(heatHaze::strengthToColor(color)) : bvec::hexcolor(color);
         lastupdate = -1;
         return p;
     }
@@ -714,7 +717,8 @@ struct varenderer : partrenderer
         calc(p, blend, ts, o, d);
         if(blend <= 1 || p->fade <= 5) p->fade = -1; //mark to remove on next pass (i.e. after render)
 
-        modifyblend<T>(o, blend);
+        // Keep authored lifetime fade for shader-driven particles (e.g. heat haze).
+        if(!(type&PT_SHADER)) modifyblend<T>(o, blend);
 
         if(regen)
         {
@@ -837,31 +841,60 @@ struct softquadrenderer : quadrenderer
     }
 };
 
+struct hazeRenderer : quadrenderer
+{
+    hazeRenderer(const char *texname, int type)
+        : quadrenderer(texname, type|PT_SHADER)
+    {
+    }
+
+    void render()
+    {
+        if(!heatHaze::shouldRender()) return;
+        if(particleHazeShader && heatHaze::bindSceneTexture())
+        {
+            particleHazeShader->set();
+            heatHaze::setShaderParams((type&PT_SCROLL) != 0, (type&PT_FADE) != 0);
+            quadrenderer::render();
+            return;
+        }
+        else if(particleshader)
+        {
+            particleshader->set();
+            LOCALPARAMF(colorscale, ldrscale, ldrscale, ldrscale, 1);
+        }
+        else return;
+        quadrenderer::render();
+    }
+};
+
 static partrenderer *parts[] =
 {
-    new quadrenderer("<grey>media/particle/blood.png", PT_PART|PT_FLIP|PT_MOD|PT_RND4|PT_COLLIDE, STAIN_BLOOD), // blood spats (note: rgb is inverted)
-    new trailrenderer("media/particle/base.png", PT_TRAIL|PT_LERP),                            // water, entity
-    new quadrenderer("<grey>media/particle/smoke.png", PT_PART|PT_FLIP|PT_LERP),               // smoke
-    new quadrenderer("<grey>media/particle/steam.png", PT_PART|PT_FLIP),                       // steam
-    new quadrenderer("<grey>media/particle/flames.png", PT_PART|PT_HFLIP|PT_RND4|PT_BRIGHT),   // flame
-    new taperenderer("media/particle/flare.png", PT_TAPE|PT_BRIGHT),                           // streak
-    new taperenderer("media/particle/rail_trail.png", PT_TAPE|PT_FEW|PT_BRIGHT),               // rail trail
-    new taperenderer("media/particle/pulse_side.png", PT_TAPE|PT_FEW|PT_BRIGHT),               // pulse side
-    new quadrenderer("media/particle/pulse_front.png", PT_PART|PT_FLIP|PT_FEW|PT_BRIGHT),      // pulse front
-    &lightnings,                                                                               // lightning
-    &fireballs,                                                                                // explosion fireball
-    &pulsebursts,                                                                              // pulse burst
-    new quadrenderer("media/particle/spark.png", PT_PART|PT_FLIP|PT_BRIGHT),                   // sparks
-    new quadrenderer("media/particle/base.png",  PT_PART|PT_FLIP|PT_BRIGHT),                   // edit mode entities
-    new quadrenderer("media/particle/snow.png", PT_PART|PT_FLIP|PT_RND4|PT_COLLIDE),           // colliding snow
-    new quadrenderer("media/particle/rail_muzzle.png", PT_PART|PT_FEW|PT_FLIP|PT_BRIGHT|PT_TRACK),  // rail muzzle flash
-    new quadrenderer("media/particle/pulse_muzzle.png", PT_PART|PT_FEW|PT_FLIP|PT_BRIGHT|PT_TRACK), // pulse muzzle flash
-    new quadrenderer("media/interface/hud/items.png", PT_PART|PT_FEW|PT_ICON),                 // hud icon
-    new quadrenderer("<colorify:1/1/1>media/interface/hud/items.png", PT_PART|PT_FEW|PT_ICON), // grey hud icon
-    &texts,                                                                                    // text
-    &meters,                                                                                   // meter
-    &metervs,                                                                                  // meter vs.
-    &flares                                                                                    // lens flares - must be done last
+    new quadrenderer("<grey>media/particle/blood.png", PT_PART|PT_FLIP|PT_MOD|PT_RND4|PT_COLLIDE, STAIN_BLOOD),     // blood spats (note: rgb is inverted)
+    new trailrenderer("media/particle/base.png", PT_TRAIL|PT_LERP),                                                 // water, entity
+    new quadrenderer("<grey>media/particle/smoke.png", PT_PART|PT_FLIP|PT_LERP),                                    // smoke
+    new quadrenderer("<grey>media/particle/steam.png", PT_PART|PT_FLIP),                                            // steam
+    new quadrenderer("<grey>media/particle/flames.png", PT_PART|PT_HFLIP|PT_RND4|PT_BRIGHT),                        // flame
+    new taperenderer("media/particle/flare.png", PT_TAPE|PT_BRIGHT),                                                // streak
+    new taperenderer("media/particle/rail_trail.png", PT_TAPE|PT_FEW|PT_BRIGHT),                                    // rail trail
+    new taperenderer("media/particle/pulse_side.png", PT_TAPE|PT_FEW|PT_BRIGHT),                                    // pulse side
+    new quadrenderer("media/particle/pulse_front.png", PT_PART|PT_FLIP|PT_FEW|PT_BRIGHT),                           // pulse front
+    &lightnings,                                                                                                    // lightning
+    &fireballs,                                                                                                     // explosion fireball
+    &pulsebursts,                                                                                                   // pulse burst
+    new quadrenderer("media/particle/spark.png", PT_PART|PT_FLIP|PT_BRIGHT),                                        // sparks
+    new quadrenderer("media/particle/base.png",  PT_PART|PT_FLIP|PT_BRIGHT),                                        // edit mode entities
+    new quadrenderer("media/particle/snow.png", PT_PART|PT_FLIP|PT_RND4|PT_COLLIDE),                                // colliding snow
+    new quadrenderer("media/particle/rail_muzzle.png", PT_PART|PT_FEW|PT_FLIP|PT_BRIGHT|PT_TRACK),                  // rail muzzle flash
+    new quadrenderer("media/particle/pulse_muzzle.png", PT_PART|PT_FEW|PT_FLIP|PT_BRIGHT|PT_TRACK),                 // pulse muzzle flash
+    new quadrenderer("media/interface/hud/items.png", PT_PART|PT_FEW|PT_ICON),                                      // hud icon
+    new quadrenderer("<colorify:1/1/1>media/interface/hud/items.png", PT_PART|PT_FEW|PT_ICON),                      // grey hud icon
+    &texts,                                                                                                         // text
+    &meters,                                                                                                        // meter
+    &metervs,                                                                                                       // meter vs.
+    new hazeRenderer("media/particle/haze/noise_1.png", PT_HAZE|PT_PART|PT_FEW|PT_SOFT|PT_LERP|PT_SCROLL|PT_FADE),  // heat haze (noise)
+    new hazeRenderer("media/particle/haze/pulse_muzzle.png", PT_HAZE|PT_PART|PT_FEW|PT_FLIP|PT_TRACK|PT_LERP),      // heat haze (pulse muzzle flash)
+    &flares                                                                                                         // lens flares - must be done last
 };
 
 VARFP(maxparticles, 10, 4000, 10000, initparticles());
@@ -874,6 +907,7 @@ void initparticles()
     if(!particlenotextureshader) particlenotextureshader = lookupshaderbyname("particlenotexture");
     if(!particlesoftshader) particlesoftshader = lookupshaderbyname("particlesoft");
     if(!particletextshader) particletextshader = lookupshaderbyname("particletext");
+    if(!particleHazeShader) particleHazeShader = lookupshaderbyname("particleHaze");
     loopi(sizeof(parts)/sizeof(parts[0])) parts[i]->init(parts[i]->type&PT_FEW ? min(fewparticles, maxparticles) : maxparticles);
     loopi(sizeof(parts)/sizeof(parts[0]))
     {
@@ -997,6 +1031,7 @@ static inline particle *newparticle(const vec &o, const vec &d, int fade, int ty
     }
     if(fade + emitoffset < 0) return &dummy;
     addedparticles++;
+    if(type == PART_HAZE_NOISE_1 || type == PART_HAZE_PULSE_MUZZLE_FLASH) color = heatHaze::strengthToColor(color);
     return parts[type]->addpart(o, d, fade, color, size, gravity);
 }
 
@@ -1330,6 +1365,13 @@ static void makeparticles(entity &e)
         case 35:
             flares.addflare(e.o, e.attr2, e.attr3, e.attr4, (e.attr1&0x02)!=0, (e.attr1&0x01)!=0);
             break;
+        case 36: // heat haze - <size> <strength 0..100>
+        {
+            int color = clamp(e.attr3, 0, 100);
+            float size = e.attr2 > 0 ? max(float(e.attr2)/10.0f, 0.1f) : 500.0f;
+            newparticle(e.o, vec(0, 0, 0), 1, PART_HAZE_NOISE_1, color, size, 0);
+            break;
+        }
         default:
             if(!editmode)
             {
@@ -1352,6 +1394,9 @@ bool printparticles(extentity &e, char *buf, int len)
             return true;
         case 5: case 6:
             nformatstring(buf, len, "%s %d %d 0x%.3hX 0x%.3hX %d", entities::entname(e.type), e.attr1, e.attr2, e.attr3, e.attr4, e.attr5);
+            return true;
+        case 36:
+            nformatstring(buf, len, "%s %d %d %d", entities::entname(e.type), e.attr1, e.attr2, e.attr3);
             return true;
     }
     return false;
