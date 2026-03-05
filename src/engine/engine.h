@@ -509,6 +509,14 @@ namespace heatHaze
     }
 }
 
+namespace godRays
+{
+    extern bool bindSunlightShadowMap();
+    extern bool shouldRender();
+    extern void render();
+    extern void cleanup();
+}
+
 // water
 extern int vertwater, waterreflect, caustics;
 extern float watersx1, watersy1, watersx2, watersy2;

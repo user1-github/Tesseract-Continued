@@ -2460,6 +2460,9 @@ void gl_drawview()
     rendervolumetric();
     GLERROR;
 
+    godRays::render();
+    GLERROR;
+
     if(editmode)
     {
         extern int outline;
@@ -2848,4 +2851,3 @@ void cleanupgl()
     cleanupscreenquad();
     gle::cleanup();
 }
-

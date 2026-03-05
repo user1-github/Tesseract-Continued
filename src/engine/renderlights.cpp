@@ -2279,6 +2279,25 @@ int calcspherecsmsplits(const vec &center, float radius)
     return mask;
 }
 
+namespace godRays
+{
+    bool bindSunlightShadowMap()
+    {
+        if(!csm.rendered || sunlight.iszero() || !csmshadowmap || !shadowatlastex) return false;
+
+        glActiveTexture_(GL_TEXTURE4);
+        glBindTexture(shadowatlastarget, shadowatlastex);
+        if(usesmcomparemode()) setsmcomparemode();
+        else setsmnoncomparemode();
+        glActiveTexture_(GL_TEXTURE0);
+
+        GLOBALPARAMF(shadowatlasscale, 1.0f/shadowatlaspacker.w, 1.0f/shadowatlaspacker.h);
+        csm.bindparams();
+        GLOBALPARAM(sunlightdir, ::sunlightdir);
+        return true;
+    }
+}
+
 struct reflectiveshadowmap
 {
     matrix4 model, proj;
@@ -5317,9 +5336,9 @@ void cleanuplights()
     cleanupbloom();
     cleanupao();
     cleanupvolumetric();
+    godRays::cleanup();
     cleanupshadowatlas();
     cleanupradiancehints();
     lightsphere::cleanup();
     cleanupaa();
 }
-
