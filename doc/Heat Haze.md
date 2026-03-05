@@ -146,10 +146,10 @@ Current implementation uses:
 
 ### Gameplay effect example
 
-Applied on Pulse Gun and Rail Gun muzzle flashes:
-- `PART_HAZE_PULSE_MUZZLE_FLASH` in `src/game/weapon.cpp`.
-Added a fire and a heat haze emitter on the map "Complex"
-- `newent particles 36 140 50`.
+- Applied on Pulse Gun and Rail Gun muzzle flashes:
+  - `PART_HAZE_PULSE_MUZZLE_FLASH` in `src/game/weapon.cpp`.
+- Added a fire and a heat haze emitter on the map "Complex"
+  - `newent particles 36 140 50`.
 
 ## Troubleshooting
 
