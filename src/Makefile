@@ -82,7 +82,9 @@ CLIENT_OBJS= \
 	engine/command.o \
 	engine/console.o \
 	engine/dynlight.o \
+	engine/godrays.o \
 	engine/grass.o \
+	engine/heathaze.o \
 	engine/light.o \
 	engine/main.o \
 	engine/material.o \

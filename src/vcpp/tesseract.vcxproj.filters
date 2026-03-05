@@ -31,6 +31,9 @@
     <ClCompile Include="..\engine\dynlight.cpp">
       <Filter>engine</Filter>
     </ClCompile>
+    <ClCompile Include="..\engine\godrays.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
     <ClCompile Include="..\game\entities.cpp">
       <Filter>game</Filter>
     </ClCompile>
@@ -44,6 +47,9 @@
       <Filter>shared</Filter>
     </ClCompile>
     <ClCompile Include="..\engine\grass.cpp">
+      <Filter>engine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\engine\heathaze.cpp">
       <Filter>engine</Filter>
     </ClCompile>
     <ClCompile Include="..\engine\light.cpp">
