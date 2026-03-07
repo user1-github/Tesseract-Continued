@@ -830,7 +830,6 @@ typedef varenderer<PT_TAPE> taperenderer;
 typedef varenderer<PT_TRAIL> trailrenderer;
 
 #include "explosion.h"
-#include "lensflare.h"
 #include "lightning.h"
 
 struct softquadrenderer : quadrenderer
@@ -893,8 +892,7 @@ static partrenderer *parts[] =
     &meters,                                                                                                        // meter
     &metervs,                                                                                                       // meter vs.
     new hazeRenderer("media/particle/haze/noise_1.png", PT_HAZE|PT_PART|PT_FEW|PT_SOFT|PT_LERP|PT_SCROLL|PT_FADE),  // heat haze (noise)
-    new hazeRenderer("media/particle/haze/pulse_muzzle.png", PT_HAZE|PT_PART|PT_FEW|PT_FLIP|PT_TRACK|PT_LERP),      // heat haze (pulse muzzle flash)
-    &flares                                                                                                         // lens flares - must be done last
+    new hazeRenderer("media/particle/haze/pulse_muzzle.png", PT_HAZE|PT_PART|PT_FEW|PT_FLIP|PT_TRACK|PT_LERP)       // heat haze (pulse muzzle flash)
 };
 
 VARFP(maxparticles, 10, 4000, 10000, initparticles());
@@ -1359,11 +1357,17 @@ static void makeparticles(entity &e)
         case 12: // smoke plume <radius> <height> <rgb>
             regularflame(PART_SMOKE, e.o, float(e.attr2)/100.0f, float(e.attr3)/100.0f, colorfromattr(e.attr4), 1, 4.0f, 100.0f, 2000.0f, -20);
             break;
-        case 32: //lens flares - plain/sparkle/sun/sparklesun <red> <green> <blue>
+        case 32: // lens flares - plain/sparkle/sun/sparklesun <red> <green> <blue> <maxdist>
         case 33:
         case 34:
         case 35:
-            flares.addflare(e.o, e.attr2, e.attr3, e.attr4, (e.attr1&0x02)!=0, (e.attr1&0x01)!=0);
+            if(!seedemitter && !emitoffset)
+            {
+                bool unlimitedDistance = e.attr1 >= 34;
+                bool lensGhosts = e.attr1 == 32 || e.attr1 == 35;
+                int maxDistance = e.attr5 > 0 ? e.attr5 : maxparticledistance;
+                lensFlares::addFlares(e.o, e.attr2, e.attr3, e.attr4, unlimitedDistance, lensGhosts, maxDistance);
+            }
             break;
         case 36: // heat haze - <size> <strength 0..100>
         {
@@ -1387,6 +1391,7 @@ bool printparticles(extentity &e, char *buf, int len)
     switch(e.attr1)
     {
         case 0: case 4: case 7: case 8: case 9: case 10: case 11: case 12: case 13:
+        case 32: case 33: case 34: case 35:
             nformatstring(buf, len, "%s %d %d %d 0x%.3hX %d", entities::entname(e.type), e.attr1, e.attr2, e.attr3, e.attr4, e.attr5);
             return true;
         case 3:
