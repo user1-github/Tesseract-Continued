@@ -5,6 +5,8 @@ PLATFORM= $(shell uname -s | tr '[:lower:]' '[:upper:]')
 PLATFORM_ARCH= $(shell uname -m)
 PLATFORM_PREFIX= native
 
+PKG_CONFIG ?= pkg-config
+
 INCLUDES= -Ishared -Iengine -Igame -Ienet/include
 
 STRIP=
@@ -56,8 +58,8 @@ CLIENT_LIBS= -F../sauerbraten.app/Contents/Frameworks/ -framework SDL2 -framewor
 CLIENT_LIBS+= -framework SDL2_mixer -framework CoreAudio -framework AudioToolbox
 CLIENT_LIBS+= -framework AudioUnit -framework OpenGL -framework Cocoa -lz -Lenet -lenet
 else
-CLIENT_INCLUDES= $(INCLUDES) -I/usr/X11R6/include `sdl2-config --cflags`
-CLIENT_LIBS= -Lenet -lenet -L/usr/X11R6/lib -lX11 `sdl2-config --libs` -lSDL2_image -lSDL2_mixer -lz -lGL
+CLIENT_INCLUDES= $(INCLUDES) `$(PKG_CONFIG) --cflags x11 sdl2 SDL2_image SDL2_mixer zlib gl`
+CLIENT_LIBS= -Lenet -lenet `$(PKG_CONFIG) --libs x11 sdl2 SDL2_image SDL2_mixer zlib gl`
 endif
 endif
 ifeq ($(PLATFORM),LINUX)
@@ -204,22 +206,22 @@ master: $(MASTER_OBJS)
 install: all
 else
 client:	libenet $(CLIENT_OBJS)
-	$(CXX) $(CXXFLAGS) -o tess_client $(CLIENT_OBJS) $(CLIENT_LIBS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o tess_client $(CLIENT_OBJS) $(CLIENT_LIBS)
 ifneq (,$(findstring DARWIN,$(PLATFORM)))
 	install_name_tool -add_rpath @executable_path/../Frameworks tess_client
 endif
 
 server:	libenet $(SERVER_OBJS)
-	$(CXX) $(CXXFLAGS) -o tess_server $(SERVER_OBJS) $(SERVER_LIBS)  
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o tess_server $(SERVER_OBJS) $(SERVER_LIBS)  
 	
 master: libenet $(MASTER_OBJS)
-	$(CXX) $(CXXFLAGS) -o tess_master $(MASTER_OBJS) $(MASTER_LIBS)  
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o tess_master $(MASTER_OBJS) $(MASTER_LIBS)  
 
 shared/tessfont.o: shared/tessfont.c
 	$(CXX) $(CXXFLAGS) -c -o $@ $< `freetype-config --cflags`
 
 tessfont: shared/tessfont.o
-	$(CXX) $(CXXFLAGS) -o tessfont shared/tessfont.o `freetype-config --libs` -lz
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o tessfont shared/tessfont.o `freetype-config --libs` -lz
 
 ifneq (,$(findstring DARWIN,$(PLATFORM)))
 install: client
